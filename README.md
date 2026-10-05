@@ -189,56 +189,70 @@ semgrep --config "p/java" --sarif -o semgrep-report.sarif src/
 
 ---
 
-#### 🔴 Finding #N — [Название уязвимости]
+#### 🔴 Finding #1 - Path traversal in /exportReport
 
 | Поле | Значение |
 |------|----------|
-| **Компонент** | Эндпоинт или класс, где обнаружена уязвимость |
-| **Тип** | Краткое название (например: Reflected XSS) |
-| **CWE** | [CWE-XXX](https://cwe.mitre.org/data/definitions/XXX.html) — название |
-| **CVSS v3.1** | Числовой балл (0.0–10.0) и вектор, например: `7.5 HIGH (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N)` |
-| **Статус** | Confirmed / Suspected / False Positive |
+| **Компонент** | GET /exportReport |
+| **Тип** | Path Traversal |
+| **CWE** | [CWE-22](https://cwe.mitre.org/data/definitions/22.html) - Path Traversal |
+| **CVSS v3.1** | 8.7 High `AV:N/AC:L/PR:L/UI:R/S:C/C:H/I:N/A:H` |
+| **Статус** | Confirmed |
 
 **Описание:**
-> Что происходит и почему это проблема.
+Эндпоинт /exportReport при ошибке записи возвращает сообщение от системы
+пользователю в теле. Это позволяет получить более подробную информацию о
+состоянии сервереа, чем обычно задумывается.
 
 **Шаги воспроизведения:**
 ```
-1. ...
-2. ...
-3. Ожидаемый результат: ...
-   Фактический результат: ...
+1. POST /register?userId=0&userName=ivan
+2. GET /exportReport?userId=0&filename=../../tmp/world-readable.txt
 ```
+Ожидание: 403 либо 400
+Фактический результат: 200 OK, файл создан в `/tmp`
 
 **Влияние:**
-> Что может сделать атакующий, если воспользуется уязвимостью.
+- Кража данных между пользователями
+- Denial of service
 
 **Рекомендации по исправлению:**
-> Конкретные меры: какой метод/библиотеку использовать, какую проверку добавить.
-
-**Security Test Case:**
-```java
-@Test
-@DisplayName("[SECURITY] ...")
-void testName() {
-    // Arrange
-    // Act
-    // Assert — проверить, что уязвимость закрыта
-}
-```
+- Запрет на пути с несколькими компонентами
+- Экранирование полученного имени файла
+- Замена `/tmp/reports` на `mktemp()` или подобное
 
 ---
 
-### Пример оформленного finding
+#### 🔴 Finding #2 - Error message disclosure in /exportReport
 
-В качестве образца изучите файл:
+| Поле | Значение |
+|------|----------|
+| **Компонент** | GET /exportReport |
+| **Тип** | Information disclosure |
+| **CWE** | [CWE-209](https://cwe.mitre.org/data/definitions/209.html) - Generation of Error Message Containing Sensitive Information |
+| **CVSS v3.1** | 4.1 Medium `AV:N/AC:L/PR:L/UI:R/S:C/C:L/I:N/A:N` |
+| **Статус** | Confirmed |
 
+**Описание:**
+Эндпоинт /exportReport при ошибке записи возвращает сообщение от системы
+пользователю в теле. Это позволяет получить более подробную информацию о
+состоянии сервереа, чем обычно задумывается.
+
+**Шаги воспроизведения:**
 ```
-src/test/java/ru/itmo/testing/lab4/pentest/XssPentestTest.java
+1. POST /register?userId=0&userName=ivan
+2. GET /exportReport?userId=0&filename=../../dev/full
 ```
+Ожидание: 400 либо 403 (см. Finding #1), либо 500 с общей ошибкой
+Фактический результат: 500 с ошибкой "No space left on device"
 
-Он демонстрирует структуру pentest-теста для **одной** из уязвимостей приложения.
-Ваша задача — найти остальные, описать их по шаблону выше и написать аналогичные тесты.
+**Влияние:**
+- Кража данных об инфраструктуре, на которой работает сервер
+
+**Рекомендации по исправлению:**
+- Запись сообщений об ошибках в логи
+- Контроль над сообщениями, которые отдаются в теле ответа
+  (например, отдавать только определённые варианты, без произвольных строк)
 
 ---
 
